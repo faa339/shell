@@ -31,10 +31,17 @@ int main()
 	while(1)
 	{
 		int argc = 0;
-		if(getcwd(workindirect,PATH_MAX-1) == NULL)ErrorHandle();
-
+		char* prompt;
+		if((prompt != NULL) || ((prompt = getenv("PS1")) != NULL))
+			printf("%s: ",prompt);
+		else
+		{
+			if(getcwd(workindirect,PATH_MAX-1) == NULL)ErrorHandle();
+			printf("%s: ",workindirect);
+		}
+		
 		char **argv = (char**) malloc(MAX_ARGS * sizeof(char*));
-		printf("%s: ",workindirect);
+		
 		if((fgets(argstring, PATH_MAX, stdin)) == NULL) ErrorHandle();
 		argStringFormat(argstring);
 
@@ -70,7 +77,6 @@ void argStringFormat(char* argstring)
 		}
 	}
 }
-
 
 int tokenProcess(char** argv, char* argstring)
 {
