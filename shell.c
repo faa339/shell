@@ -31,7 +31,7 @@ int main()
 	while(1)
 	{
 		int argc = 0;
-		char* prompt;
+		char* prompt = NULL;
 		if((prompt != NULL) || ((prompt = getenv("PS1")) != NULL))
 			printf("%s: ",prompt);
 		else
