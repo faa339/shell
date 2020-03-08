@@ -31,8 +31,7 @@ void argExec(char** argv, int argc);
 int main()
 {
 	errno = 0;
-	//Setting up all string variables here to avoid unnecessary 
-	//reallocation
+	//Setting up all string variables here to avoid unnecessary reallocs
 	char argstring[PATH_MAX];
 	char *token = NULL;
 	char workindirect[PATH_MAX];
@@ -44,6 +43,7 @@ int main()
 	}
 	int argc;
 	char* prompt = NULL;
+	//We wamt to ignore SIGINTS and SIGQUITS while in our shells main process
 	if(signal(SIGINT,SIG_IGN) == SIG_ERR)
 	{
 		printf("Failed to establish SIGINT handler\n");
@@ -58,7 +58,7 @@ int main()
 	while(1)
 	{
 		argc = 0;
-		argv = memset(argv, '\0', MAX_ARGS * sizeof(char*));
+		argv = memset(argv, 0, MAX_ARGS * sizeof(char*));
 		//Have to clear argv here, dont want it all messy from previous cmnds
 
 		//Check if we were given a custom prompt string
@@ -85,7 +85,7 @@ int main()
 		if(strcmp(argstring, "") == 0) continue;
 
 		argc = tokenProcess(argv, argstring);
-
+		
 		if(argc < 0)
 		{
 			ErrorHandle();
@@ -146,7 +146,7 @@ int tokenProcess(char** argv, char* argstring)
 int redirHandle(char* redirpath, int redirOp)
 {
 	//Given an fd to redirect to/from and an op
-	//Redirect > < 2>
+	//Redirecting >, <, 2>, and >> only
 	int fd = 0;
 	if(redirOp == STDOUT_FILENO)
 	{
@@ -201,7 +201,7 @@ void cdExecute(char** argv, char* workindirect)
 void argExec(char** argv, int argc)
 {
 	//Execute any cmnds that arent exit or cd here 
-	int pid = fork(), j=0, waitstat=0, redirstat=0;
+	int pid = fork(), execount=1, waitstat=0, redirstat=0;
 	if(pid == 0)
 	{
 		if(signal(SIGINT,SIG_DFL) == SIG_ERR)
@@ -216,9 +216,10 @@ void argExec(char** argv, int argc)
 		}
 		
 		char** execargs = (char**) malloc(argc*sizeof(char*));
-		memset(execargs, '\0' , argc * sizeof(char*));
+		execargs = memset(execargs, 0 , argc * sizeof(char*));
+		execargs[0] = argv[0];
 		//Check for any redirection; if none, execargs == argv
-		for(int i=0; i<argc; i++)
+		for(int i=1; i<argc; i++)
 		{
 			if(strcmp(argv[i], "<") == 0)
 			{
@@ -256,8 +257,10 @@ void argExec(char** argv, int argc)
 					exit(EXIT_FAILURE);
 				}
 				i+=2;
-			}else execargs[j++] = argv[i];
+			}else execargs[execount++] = argv[i];
 		}
+		//Null terminate so that execvp has no issues
+		execargs[execount] = NULL;
 		execvp(execargs[0], execargs);
 		if(errno) 
 		{
