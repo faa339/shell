@@ -37,6 +37,11 @@ int main()
 	char *token = NULL;
 	char workindirect[PATH_MAX];
 	char **argv = (char**) malloc(MAX_ARGS * sizeof(char*));
+	if (argv == NULL) 
+	{
+		printf("Malloc failure\n");
+		exit(EXIT_FAILURE);
+	}
 	int argc;
 	char* prompt = NULL;
 	if(signal(SIGINT,SIG_IGN) == SIG_ERR)
@@ -61,11 +66,19 @@ int main()
 			printf("%s: ",prompt);
 		else
 		{ 
-			if(getcwd(workindirect,PATH_MAX-1) == NULL)ErrorHandle();
+			if(getcwd(workindirect,PATH_MAX-1) == NULL)
+			{
+				ErrorHandle();
+				exit(EXIT_FAILURE);
+			}
 			printf("%s: ",workindirect);
 		}
 		
-		if((fgets(argstring, PATH_MAX, stdin)) == NULL) ErrorHandle();
+		if((fgets(argstring, PATH_MAX, stdin)) == NULL) 
+		{
+			ErrorHandle();
+			continue;
+		}	
 		//If SIGINT or SIGQUIT was sent, the string will be empty
 		//Don't even bother processing it, just continue
 		argStringFormat(argstring);
