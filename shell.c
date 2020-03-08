@@ -19,12 +19,12 @@ Description: An interactive shell.
 #define MAX_ARGS 1024
 
 void ErrorHandle(void);
+void getPrompt(char* prompt);
 void argStringFormat(char* argstring);
 int tokenProcess(char** argv, char* argstring);
 int redirHandle(char* redirpath, int redirOp);
 void cdExecute(char** argv, char* workindirect);
 void argExec(char** argv, int argc);
-
 
 int main()
 {
@@ -55,10 +55,10 @@ int main()
 		//Have to clear argv here, dont want it all messy from previous cmnds
 
 		//Check if we were given a custom prompt string
-		if((prompt != NULL) || ((prompt = getenv("PS1")) != NULL))
-			printf("%s: ",prompt);
+		if((prompt = getenv("PS1")) != NULL)
+		printf("%s: ",prompt);
 		else
-		{
+		{ 
 			if(getcwd(workindirect,PATH_MAX-1) == NULL)ErrorHandle();
 			printf("%s: ",workindirect);
 		}
@@ -186,7 +186,7 @@ void cdExecute(char** argv, char* workindirect)
 void argExec(char** argv, int argc)
 {
 	//Execute any cmnds that arent exit or cd here 
-	int pid = fork(), j=0, waitstat=0;
+	int pid = fork(), j=0, waitstat=0, redirstat=0;
 	if(pid == 0)
 	{
 		signal(SIGINT,SIG_DFL);
@@ -198,19 +198,39 @@ void argExec(char** argv, int argc)
 		{
 			if(strcmp(argv[i], "<") == 0)
 			{
-				redirHandle(argv[i+1], STDIN_FILENO);
+				redirstat = redirHandle(argv[i+1], STDIN_FILENO);
+				if(redirstat < 0)
+				{
+					printf("Redirection error: could not redirect\n");
+					exit(EXIT_FAILURE);
+				}
 				i+=2;
 			}else if(strcmp(argv[i], ">") == 0)
 			{
-				redirHandle(argv[i+1], STDOUT_FILENO);
+				redirstat = redirHandle(argv[i+1], STDOUT_FILENO);
+				if(redirstat < 0)
+				{
+					printf("Redirection error: could not redirect\n");
+					exit(EXIT_FAILURE);
+				}
 				i+=2;
 			}else if(strcmp(argv[i], "2>") == 0)
 			{
-				redirHandle(argv[i+1], STDERR_FILENO);
+				redirstat = redirHandle(argv[i+1], STDERR_FILENO);
+				if(redirstat < 0)
+				{
+					printf("Redirection error: could not redirect\n");
+					exit(EXIT_FAILURE);
+				}
 				i+=2;
 			}else if(strcmp(argv[i], ">>") == 0)
 			{
-				redirHandle(argv[i+1], O_APPEND);
+				redirstat = redirHandle(argv[i+1], O_APPEND);
+				if(redirstat < 0)
+				{
+					printf("Redirection error: could not redirect\n");
+					exit(EXIT_FAILURE);
+				}
 				i+=2;
 			}else execargs[j++] = argv[i];
 		}
