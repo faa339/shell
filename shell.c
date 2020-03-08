@@ -1,7 +1,9 @@
 /*
 Author: Faris Alotaibi
 
-Description: An interactive shell. 
+Description: An interactive shell.
+Exit the shell by typing
+	exit 
 */
 
 #include <stdlib.h>
@@ -55,8 +57,8 @@ int main()
 		//Have to clear argv here, dont want it all messy from previous cmnds
 
 		//Check if we were given a custom prompt string
-		if((prompt = getenv("PS1")) != NULL)
-		printf("%s: ",prompt);
+		if((prompt != NULL) ||((prompt = getenv("PS1")) != NULL))
+			printf("%s: ",prompt);
 		else
 		{ 
 			if(getcwd(workindirect,PATH_MAX-1) == NULL)ErrorHandle();
@@ -189,8 +191,17 @@ void argExec(char** argv, int argc)
 	int pid = fork(), j=0, waitstat=0, redirstat=0;
 	if(pid == 0)
 	{
-		signal(SIGINT,SIG_DFL);
-		signal(SIGQUIT,SIG_DFL);
+		if(signal(SIGINT,SIG_DFL) == SIG_ERR)
+		{
+			printf("Failed to establish Signal handler\n");
+			exit(EXIT_FAILURE);
+		}
+		if(signal(SIGQUIT,SIG_DFL) == SIG_ERR)
+		{
+			printf("Failed to establish Signal handler\n");
+			exit(EXIT_FAILURE);	
+		}
+		
 		char** execargs = (char**) malloc(argc*sizeof(char*));
 		memset(execargs, '\0' , argc * sizeof(char*));
 		//Check for any redirection; if none, execargs == argv
