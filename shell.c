@@ -10,7 +10,10 @@ Description: An interactive shell.
 #include <string.h>
 #include <linux/limits.h>
 #include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 #include <sys/wait.h>
+#include <signal.h>
 #include <errno.h>
 
 #define MAX_ARGS 1024
@@ -18,7 +21,7 @@ Description: An interactive shell.
 void ErrorHandle(void);
 void argStringFormat(char* argstring);
 int tokenProcess(char** argv, char* argstring);
-int pipeHandle(char** argv, int argc);
+int redirHandle(char* redirpath, int redirOp);
 void cdExecute(char** argv, char* workindirect);
 void argExec(char** argv, int argc);
 
@@ -32,14 +35,26 @@ int main()
 	char *token = NULL;
 	char workindirect[PATH_MAX];
 	char **argv = (char**) malloc(MAX_ARGS * sizeof(char*));
+	int argc;
 	char* prompt = NULL;
+	if(signal(SIGINT,SIG_IGN) == SIG_ERR)
+	{
+		printf("Failed to establish SIGINT handler\n");
+		exit(EXIT_FAILURE);
+	};
+	if(signal(SIGQUIT,SIG_IGN) == SIG_ERR)
+	{
+		printf("Failed to establish SIGQUIT handler\n");
+		exit(EXIT_FAILURE);
+	};
 
 	while(1)
 	{
-		int argc = 0;
+		argc = 0;
+		argv = memset(argv, '\0', MAX_ARGS * sizeof(char*));
 		//Have to clear argv here, dont want it all messy from previous cmnds
-		argv = memset(argv, 0, MAX_ARGS);
 
+		//Check if we were given a custom prompt string
 		if((prompt != NULL) || ((prompt = getenv("PS1")) != NULL))
 			printf("%s: ",prompt);
 		else
@@ -49,19 +64,29 @@ int main()
 		}
 		
 		if((fgets(argstring, PATH_MAX, stdin)) == NULL) ErrorHandle();
+		//If SIGINT or SIGQUIT was sent, the string will be empty
+		//Don't even bother processing it, just continue
 		argStringFormat(argstring);
+		if(strcmp(argstring, "") == 0) continue;
 
 		argc = tokenProcess(argv, argstring);
 
-		//Block to handle built-in usage possibilities
-		if(strcmp(argv[0], "cd") == 0 && argc < 3)
+		if(argc < 0)
+		{
+			ErrorHandle();
+			printf("%d\n", argc);
+			continue;
+		}
+
+		//If-elses to handle built-in usage possibilities
+		if((strcmp(argv[0], "cd") == 0) && argc < 3)
 			cdExecute(argv, workindirect);
-		else if(strcmp(argv[0], "cd") == 0 && argc>= 3)
-			printf("cd: too many arguments\n");
-		else if((strcmp(argv[0], "exit")) == 0 && (argc < 3))
+		else if((strcmp(argv[0], "cd") == 0) && argc>= 3)
+			printf("cd: Too many arguments\n");
+		else if((strcmp(argv[0], "exit") == 0) && (argc < 3))
 			exit(EXIT_SUCCESS);
-		else if((strcmp(argv[0], "exit")) == 0 && (argc >= 3))
-			printf("exit: too many arguments\n");
+		else if((strcmp(argv[0], "exit") == 0) && (argc >= 3))
+			printf("exit: Too many arguments\n");
 		else
 			argExec(argv, argc);
 	}
@@ -95,34 +120,52 @@ int tokenProcess(char** argv, char* argstring)
 	int argcount = 0;
 	char* token = strtok(argstring, " ");
 	while(token  != NULL)
-	{
+	{ 	
 		argv[argcount++] = token;
 		token = strtok(NULL, " ");
 	}
+
 	return argcount;
 }
 
-int pipeHandle(char** argv, int argc)
+int redirHandle(char* redirpath, int redirOp)
 {
-	for(int i=0; i< argc; i++)
+	//Given an fd to redirect to/from and an op
+	//Redirect > < 2>
+	int fd = 0;
+	if(redirOp == STDOUT_FILENO)
 	{
-		if(strmp(argv[i], "<") == 0)
-		{
-			return 0
-		}else if(strcmp(argv[i], ">") == 0)
-		{
-			return 0
-		}else if(argv[i][strlen(argv[i])-1] == '>')
-		{
-			return 0
-		}else if(argv[i][0] == '<')
-		{
-			return 0
-		}else if(strcmp(argv[i], ">>") == 0)
-		{
+		fd = open(redirpath,O_WRONLY|O_CREAT, 0666);
+		if(fd < 0) ErrorHandle();
 
-		}else return -1;
-	}
+		if(dup2(fd, STDOUT_FILENO) < 0) ErrorHandle();
+		close(fd);
+		return 0;
+	}else if(redirOp == STDIN_FILENO)
+	{
+		fd = open(redirpath,O_RDONLY|O_CREAT, 0666);
+		if(fd < 0) ErrorHandle();
+		
+		if(dup2(fd, STDIN_FILENO) < 0) ErrorHandle();
+		close(fd);
+		return 0;
+	}else if(redirOp == STDERR_FILENO)
+	{
+		fd = open(redirpath,O_WRONLY|O_CREAT, 0666);
+		if(fd < 0) ErrorHandle();
+		
+		if(dup2(fd, STDERR_FILENO) < 0) ErrorHandle();
+		close(fd);
+		return 0;
+	}else if(redirOp == O_APPEND)
+	{
+		fd = open(redirpath,O_RDWR|O_APPEND|O_CREAT, 0666);
+		if(fd < 0) ErrorHandle();
+		
+		if(dup2(fd, STDOUT_FILENO) < 0) ErrorHandle();
+		close(fd);
+		return 0;
+	}else return -1;
 }
 
 void cdExecute(char** argv, char* workindirect)
@@ -143,14 +186,44 @@ void cdExecute(char** argv, char* workindirect)
 void argExec(char** argv, int argc)
 {
 	//Execute any cmnds that arent exit or cd here 
-	int pid = fork(), waitstat = 0;
+	int pid = fork(), j=0, waitstat=0;
 	if(pid == 0)
 	{
-		execvp(argv[0], argv);
-		if(errno) ErrorHandle();
+		signal(SIGINT,SIG_DFL);
+		signal(SIGQUIT,SIG_DFL);
+		char** execargs = (char**) malloc(argc*sizeof(char*));
+		memset(execargs, '\0' , argc * sizeof(char*));
+		//Check for any redirection; if none, execargs == argv
+		for(int i=0; i<argc; i++)
+		{
+			if(strcmp(argv[i], "<") == 0)
+			{
+				redirHandle(argv[i+1], STDIN_FILENO);
+				i+=2;
+			}else if(strcmp(argv[i], ">") == 0)
+			{
+				redirHandle(argv[i+1], STDOUT_FILENO);
+				i+=2;
+			}else if(strcmp(argv[i], "2>") == 0)
+			{
+				redirHandle(argv[i+1], STDERR_FILENO);
+				i+=2;
+			}else if(strcmp(argv[i], ">>") == 0)
+			{
+				redirHandle(argv[i+1], O_APPEND);
+				i+=2;
+			}else execargs[j++] = argv[i];
+		}
+		execvp(execargs[0], execargs);
+		if(errno) 
+		{
+			ErrorHandle();
+			exit(EXIT_FAILURE);
+		}
 	}else
 	{
 		wait(&waitstat); 
+		if(!(WIFEXITED(waitstat))) ErrorHandle();
 		//All good parents wait for their children!
 	}
 }
