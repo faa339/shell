@@ -141,10 +141,7 @@ void builtInCheck(char** argv, char* workindirect, int argc)
 
 void signalSetup(__sighandler_t handler)
 {
-	//Set up signals in here based on value of handler 
-	/*I tried using the manpage defined type but gcc kept suggesting this
-	__signalhandler_t type instead -- it still works fine but I dont understand
-	why theres that inconsistency.*/
+	//Set up signals in here based on value of handler
 	struct sigaction new_action;
 	new_action.sa_handler = handler;
 
