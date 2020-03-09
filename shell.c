@@ -20,13 +20,16 @@ Exit the shell by typing
 
 #define MAX_ARGS 1024
 
-void ErrorHandle(void);
+void errorHandle(void);
 void getPrompt(char* prompt);
 void argStringFormat(char* argstring);
 int tokenProcess(char** argv, char* argstring);
 int redirHandle(char* redirpath, int redirOp);
+void builtInCheck(char ** argv, char* workindirect, int argc);
 void cdExecute(char** argv, char* workindirect);
+int createEargs(char** execargs, char** argv, int argc);
 void argExec(char** argv, int argc);
+void signalSetup(__sighandler_t handler);
 
 int main()
 {
@@ -44,17 +47,7 @@ int main()
 	int argc;
 	char* prompt = NULL;
 	//We wamt to ignore SIGINTS and SIGQUITS while in our shells main process
-	if(signal(SIGINT,SIG_IGN) == SIG_ERR)
-	{
-		printf("Failed to establish SIGINT handler\n");
-		exit(EXIT_FAILURE);
-	};
-	if(signal(SIGQUIT,SIG_IGN) == SIG_ERR)
-	{
-		printf("Failed to establish SIGQUIT handler\n");
-		exit(EXIT_FAILURE);
-	};
-
+	signalSetup(SIG_IGN);
 	while(1)
 	{
 		argc = 0;
@@ -68,7 +61,7 @@ int main()
 		{ 
 			if(getcwd(workindirect,PATH_MAX-1) == NULL)
 			{
-				ErrorHandle();
+				errorHandle();
 				exit(EXIT_FAILURE);
 			}
 			printf("%s: ",workindirect);
@@ -76,38 +69,27 @@ int main()
 		
 		if((fgets(argstring, PATH_MAX, stdin)) == NULL) 
 		{
-			ErrorHandle();
+			errorHandle();
 			continue;
 		}	
-		//If SIGINT or SIGQUIT was sent, the string will be empty
-		//Don't even bother processing it, just continue
+		if(strcmp(argstring, "\n") == 0) continue;
+		//If SIGINT or SIGQUIT was sent, the string will only have \n
+		//Don't even bother tokenizing it, just continue
 		argStringFormat(argstring);
-		if(strcmp(argstring, "") == 0) continue;
 
 		argc = tokenProcess(argv, argstring);
 		
 		if(argc < 0)
 		{
-			ErrorHandle();
-			printf("%d\n", argc);
+			fprintf(stderr, "Unable to process arguments\n");
 			continue;
 		}
-
-		//If-elses to handle built-in usage possibilities
-		if((strcmp(argv[0], "cd") == 0) && argc < 3)
-			cdExecute(argv, workindirect);
-		else if((strcmp(argv[0], "cd") == 0) && argc>= 3)
-			printf("cd: Too many arguments\n");
-		else if((strcmp(argv[0], "exit") == 0) && (argc < 3))
-			exit(EXIT_SUCCESS);
-		else if((strcmp(argv[0], "exit") == 0) && (argc >= 3))
-			printf("exit: Too many arguments\n");
-		else
-			argExec(argv, argc);
+		//Check if we were given cd or exit, else execute the arg
+		builtInCheck(argv, workindirect, argc);
 	}
 } 
 
-void ErrorHandle(void)
+void errorHandle(void)
 {
 	//Display the error message
 	//Since we want to stay in the shell, we don't exit(EXIT_FAILURE)
@@ -143,6 +125,38 @@ int tokenProcess(char** argv, char* argstring)
 	return argcount;
 }
 
+void builtInCheck(char** argv, char* workindirect, int argc)
+{
+	if((strcmp(argv[0], "cd") == 0) && argc < 3)
+		cdExecute(argv, workindirect);
+	else if((strcmp(argv[0], "cd") == 0) && argc>= 3)
+		fprintf(stderr,"cd: Too many arguments\n");
+	else if((strcmp(argv[0], "exit") == 0) && (argc < 3))
+		exit(EXIT_SUCCESS);
+	else if((strcmp(argv[0], "exit") == 0) && (argc >= 3))
+		fprintf(stderr,"exit: Too many arguments\n");
+	else
+		argExec(argv, argc);
+}
+
+void signalSetup(__sighandler_t handler)
+{
+	//Set up signals in here based on value of handler 
+	/*I tried using the manpage defined type but gcc kept suggesting this
+	__signalhandler_t type instead -- it still works fine but I dont understand
+	why theres that inconsistency.*/
+	if(signal(SIGINT,handler) == SIG_ERR)
+	{
+		fprintf(stderr,"Failed to establish SIGINT handler\n");
+		exit(EXIT_FAILURE);
+	}
+	if(signal(SIGQUIT,handler) == SIG_ERR)
+	{
+		fprintf(stderr,"Failed to establish SIGQUIT handler\n");
+		exit(EXIT_FAILURE);	
+	}
+}
+
 int redirHandle(char* redirpath, int redirOp)
 {
 	//Given an fd to redirect to/from and an op
@@ -151,33 +165,33 @@ int redirHandle(char* redirpath, int redirOp)
 	if(redirOp == STDOUT_FILENO)
 	{
 		fd = open(redirpath,O_WRONLY|O_CREAT, 0666);
-		if(fd < 0) ErrorHandle();
+		if(fd < 0) errorHandle();
 
-		if(dup2(fd, STDOUT_FILENO) < 0) ErrorHandle();
+		if(dup2(fd, STDOUT_FILENO) < 0) errorHandle();
 		close(fd);
 		return 0;
 	}else if(redirOp == STDIN_FILENO)
 	{
 		fd = open(redirpath,O_RDONLY|O_CREAT, 0666);
-		if(fd < 0) ErrorHandle();
+		if(fd < 0) errorHandle();
 		
-		if(dup2(fd, STDIN_FILENO) < 0) ErrorHandle();
+		if(dup2(fd, STDIN_FILENO) < 0) errorHandle();
 		close(fd);
 		return 0;
 	}else if(redirOp == STDERR_FILENO)
 	{
 		fd = open(redirpath,O_WRONLY|O_CREAT, 0666);
-		if(fd < 0) ErrorHandle();
+		if(fd < 0) errorHandle();
 		
-		if(dup2(fd, STDERR_FILENO) < 0) ErrorHandle();
+		if(dup2(fd, STDERR_FILENO) < 0) errorHandle();
 		close(fd);
 		return 0;
 	}else if(redirOp == O_APPEND)
 	{
 		fd = open(redirpath,O_RDWR|O_APPEND|O_CREAT, 0666);
-		if(fd < 0) ErrorHandle();
+		if(fd < 0) errorHandle();
 		
-		if(dup2(fd, STDOUT_FILENO) < 0) ErrorHandle();
+		if(dup2(fd, STDOUT_FILENO) < 0) errorHandle();
 		close(fd);
 		return 0;
 	}else return -1;
@@ -193,84 +207,84 @@ void cdExecute(char** argv, char* workindirect)
 	else
 		chtest = chdir(".");
 
-	if(chtest<0) ErrorHandle();
+	if(chtest<0) errorHandle();
 
-	if ((getcwd(workindirect,PATH_MAX-1)) == NULL) ErrorHandle();
+	if ((getcwd(workindirect,PATH_MAX-1)) == NULL) errorHandle();
+}
+
+int createEargs(char** execargs, char** argv, int argc)
+{
+	//Create arg array to be passed to exec 
+	//If theres no redirection, execargs == argv
+	int eargs=1, redirstat=0;
+	execargs[0] = argv[0];
+	for(int i=1; i<argc; i++)
+	{
+		if(strcmp(argv[i], "<") == 0)
+		{
+			redirstat = redirHandle(argv[i+1], STDIN_FILENO);
+			if(redirstat < 0)
+			{
+				fprintf(stderr,"Redirection error: could not redirect\n");
+				exit(EXIT_FAILURE);
+			}
+			i+=2;
+		}else if(strcmp(argv[i], ">") == 0)
+		{
+			redirstat = redirHandle(argv[i+1], STDOUT_FILENO);
+			if(redirstat < 0)
+			{
+				fprintf(stderr,"Redirection error: could not redirect\n");
+				exit(EXIT_FAILURE);
+			}
+			i+=2;
+		}else if(strcmp(argv[i], "2>") == 0)
+		{
+			redirstat = redirHandle(argv[i+1], STDERR_FILENO);
+			if(redirstat < 0)
+			{
+				fprintf(stderr,"Redirection error: could not redirect\n");
+				exit(EXIT_FAILURE);
+			}
+			i+=2;
+		}else if(strcmp(argv[i], ">>") == 0)
+		{
+			redirstat = redirHandle(argv[i+1], O_APPEND);
+			if(redirstat < 0)
+			{
+				fprintf(stderr,"Redirection error: could not redirect\n");
+				exit(EXIT_FAILURE);
+			}
+			i+=2;
+		}else execargs[eargs++] = argv[i];
+	}
+	return eargs;
 }
 
 void argExec(char** argv, int argc)
 {
-	//Execute any cmnds that arent exit or cd here 
-	int pid = fork(), execount=1, waitstat=0, redirstat=0;
+	//Execute any cmnds that arent exit or cd here
+	int execount=0, waitstat=0, exectest=0;
+	int pid = fork();
 	if(pid == 0)
 	{
-		if(signal(SIGINT,SIG_DFL) == SIG_ERR)
-		{
-			printf("Failed to establish Signal handler\n");
-			exit(EXIT_FAILURE);
-		}
-		if(signal(SIGQUIT,SIG_DFL) == SIG_ERR)
-		{
-			printf("Failed to establish Signal handler\n");
-			exit(EXIT_FAILURE);	
-		}
-		
+		signalSetup(SIG_DFL);
 		char** execargs = (char**) malloc(argc*sizeof(char*));
 		execargs = memset(execargs, 0 , argc * sizeof(char*));
-		execargs[0] = argv[0];
-		//Check for any redirection; if none, execargs == argv
-		for(int i=1; i<argc; i++)
+		execount = createEargs(execargs, argv, argc);
+		execargs[execount] = NULL; 
+		exectest = execvp(execargs[0], execargs);
+		if(errno && exectest < 0) 
 		{
-			if(strcmp(argv[i], "<") == 0)
-			{
-				redirstat = redirHandle(argv[i+1], STDIN_FILENO);
-				if(redirstat < 0)
-				{
-					printf("Redirection error: could not redirect\n");
-					exit(EXIT_FAILURE);
-				}
-				i+=2;
-			}else if(strcmp(argv[i], ">") == 0)
-			{
-				redirstat = redirHandle(argv[i+1], STDOUT_FILENO);
-				if(redirstat < 0)
-				{
-					printf("Redirection error: could not redirect\n");
-					exit(EXIT_FAILURE);
-				}
-				i+=2;
-			}else if(strcmp(argv[i], "2>") == 0)
-			{
-				redirstat = redirHandle(argv[i+1], STDERR_FILENO);
-				if(redirstat < 0)
-				{
-					printf("Redirection error: could not redirect\n");
-					exit(EXIT_FAILURE);
-				}
-				i+=2;
-			}else if(strcmp(argv[i], ">>") == 0)
-			{
-				redirstat = redirHandle(argv[i+1], O_APPEND);
-				if(redirstat < 0)
-				{
-					printf("Redirection error: could not redirect\n");
-					exit(EXIT_FAILURE);
-				}
-				i+=2;
-			}else execargs[execount++] = argv[i];
-		}
-		//Null terminate so that execvp has no issues
-		execargs[execount] = NULL;
-		execvp(execargs[0], execargs);
-		if(errno) 
-		{
-			ErrorHandle();
+			errorHandle();
 			exit(EXIT_FAILURE);
 		}
+
 	}else
 	{
 		wait(&waitstat); 
-		if(!(WIFEXITED(waitstat))) ErrorHandle();
+		if(!(WIFEXITED(waitstat))) errorHandle();
 		//All good parents wait for their children!
 	}
 }
+
