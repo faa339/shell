@@ -46,7 +46,7 @@ int main()
 	}
 	int argc;
 	char* prompt = NULL;
-	//We wamt to ignore SIGINTS and SIGQUITS while in our shells main process
+	//We want to ignore SIGINTS and SIGQUITS while in our shells main process
 	signalSetup(SIG_IGN);
 	while(1)
 	{
