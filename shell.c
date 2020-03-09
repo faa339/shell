@@ -5,7 +5,7 @@ Description: An interactive shell.
 Exit the shell by typing
 	exit 
 */
-
+#define _POSIX_C_SOURCE 1
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -145,15 +145,18 @@ void signalSetup(__sighandler_t handler)
 	/*I tried using the manpage defined type but gcc kept suggesting this
 	__signalhandler_t type instead -- it still works fine but I dont understand
 	why theres that inconsistency.*/
-	if(signal(SIGINT,handler) == SIG_ERR)
+	struct sigaction new_action;
+	new_action.sa_handler = handler;
+
+	if((sigaction(SIGINT, &new_action,NULL) < 0))
 	{
-		fprintf(stderr,"Failed to establish SIGINT handler\n");
+		errorHandle();
 		exit(EXIT_FAILURE);
 	}
-	if(signal(SIGQUIT,handler) == SIG_ERR)
+	if((sigaction(SIGQUIT, &new_action, NULL)) < 0)
 	{
-		fprintf(stderr,"Failed to establish SIGQUIT handler\n");
-		exit(EXIT_FAILURE);	
+		errorHandle();
+		exit(EXIT_FAILURE);
 	}
 }
 
@@ -274,7 +277,7 @@ void argExec(char** argv, int argc)
 		execount = createEargs(execargs, argv, argc);
 		execargs[execount] = NULL; 
 		exectest = execvp(execargs[0], execargs);
-		if(errno && exectest < 0) 
+		if(exectest < 0) 
 		{
 			errorHandle();
 			exit(EXIT_FAILURE);
