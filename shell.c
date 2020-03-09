@@ -268,10 +268,12 @@ void argExec(char** argv, int argc)
 	int pid = fork();
 	if(pid == 0)
 	{
+		//Change our signals back to default in child for early exits
 		signalSetup(SIG_DFL);
 		char** execargs = (char**) malloc(argc*sizeof(char*));
 		execargs = memset(execargs, 0 , argc * sizeof(char*));
 		execount = createEargs(execargs, argv, argc);
+		//Manually null terminating our string to be safe
 		execargs[execount] = NULL; 
 		exectest = execvp(execargs[0], execargs);
 		if(exectest < 0) 
@@ -279,7 +281,6 @@ void argExec(char** argv, int argc)
 			errorHandle();
 			exit(EXIT_FAILURE);
 		}
-
 	}else
 	{
 		wait(&waitstat); 
