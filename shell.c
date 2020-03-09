@@ -200,9 +200,8 @@ int redirHandle(char* redirpath, int redirOp)
 void cdExecute(char** argv, char* workindirect)
 {
 	//Func to handle changing directories & changing our environment string
-	//to reflect the change
 	int chtest = 0;
-	if (argv[1])
+	if (argv[1]) // if we have a location to change to
 		chtest = chdir(argv[1]);
 	else
 		chtest = chdir(".");
@@ -218,6 +217,7 @@ int createEargs(char** execargs, char** argv, int argc)
 	//If theres no redirection, execargs == argv
 	int eargs=1, redirstat=0;
 	execargs[0] = argv[0];
+	//Iterate over argv looking for any redirection characters
 	for(int i=1; i<argc; i++)
 	{
 		if(strcmp(argv[i], "<") == 0)
@@ -258,7 +258,7 @@ int createEargs(char** execargs, char** argv, int argc)
 			i+=2;
 		}else execargs[eargs++] = argv[i];
 	}
-	return eargs;
+	return eargs; //argc but for our exec args string
 }
 
 void argExec(char** argv, int argc)
