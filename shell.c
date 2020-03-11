@@ -220,7 +220,7 @@ int createEargs(char** execargs, char** argv, int argc)
 	//Iterate over argv looking for any redirection characters
 	for(int i=1; i<argc; i++)
 	{
-		if(strcmp(argv[i], "<") == 0)
+		if(((strcmp(argv[i], "<") == 0) && argv[i+1]))
 		{
 			redirstat = redirHandle(argv[i+1], STDIN_FILENO);
 			if(redirstat < 0)
@@ -229,7 +229,7 @@ int createEargs(char** execargs, char** argv, int argc)
 				exit(EXIT_FAILURE);
 			}
 			i+=2;
-		}else if(strcmp(argv[i], ">") == 0)
+		}else if((strcmp(argv[i], ">") == 0) && argv[i+1])
 		{
 			redirstat = redirHandle(argv[i+1], STDOUT_FILENO);
 			if(redirstat < 0)
@@ -238,7 +238,7 @@ int createEargs(char** execargs, char** argv, int argc)
 				exit(EXIT_FAILURE);
 			}
 			i+=2;
-		}else if(strcmp(argv[i], "2>") == 0)
+		}else if((strcmp(argv[i], "2>") == 0) && argv[i+1])
 		{
 			redirstat = redirHandle(argv[i+1], STDERR_FILENO);
 			if(redirstat < 0)
@@ -247,7 +247,7 @@ int createEargs(char** execargs, char** argv, int argc)
 				exit(EXIT_FAILURE);
 			}
 			i+=2;
-		}else if(strcmp(argv[i], ">>") == 0)
+		}else if((strcmp(argv[i], ">>") == 0) && argv[i+1])
 		{
 			redirstat = redirHandle(argv[i+1], O_APPEND);
 			if(redirstat < 0)
@@ -277,10 +277,8 @@ void argExec(char** argv, int argc)
 		execargs[execount] = NULL; 
 		exectest = execvp(execargs[0], execargs);
 		if(exectest < 0) 
-		{
 			errorHandle();
-			exit(EXIT_FAILURE);
-		}
+		exit(EXIT_FAILURE);
 	}else
 	{
 		wait(&waitstat); 
