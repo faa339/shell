@@ -21,7 +21,7 @@ Exit the shell by typing
 #define MAX_ARGS 1024
 
 void errorHandle(void);
-void getPrompt(char* prompt);
+void setDirectory(char* workindirect);
 void argStringFormat(char* argstring);
 int tokenProcess(char** argv, char* argstring);
 int redirHandle(char* redirpath, int redirOp);
@@ -44,7 +44,7 @@ int main()
 		exit(EXIT_FAILURE);
 	}
 	int argc;
-	char* userprompt;
+	char* userprompt = getenv("PS1");
 	//We want to ignore SIGINTS and SIGQUITS while in our shells main process
 	signalSetup(SIG_IGN);
 	while(1)
@@ -54,15 +54,11 @@ int main()
 		//Have to clear argv here, dont want it all messy from previous cmnds
 
 		//Check if we were given a custom prompt string
-		if((userprompt != NULL) ||((userprompt = getenv("PS1")) != NULL))
+		if((userprompt != NULL))
 			printf("%s: ",userprompt);
 		else
-		{ 
-			if(getcwd(workindirect,PATH_MAX-1) == NULL)
-			{
-				errorHandle();
-				exit(EXIT_FAILURE);
-			}
+		{   //get the current directory if PS1 not specified
+			setDirectory(workindirect);
 			printf("%s: ",workindirect);
 		}
 		
@@ -72,17 +68,12 @@ int main()
 			continue;
 		}	
 		if(strcmp(argstring, "\n") == 0) continue;
-		//If SIGINT or SIGQUIT was sent, the string will only have \n
-		//Don't even bother tokenizing it, just continue
+		//Don't bother tokenizing a string with only \n, just continue
+		//But do remove the \n that fgets adds to the end of an arg
 		argStringFormat(argstring);
 
 		argc = tokenProcess(argv, argstring);
-		
-		if(argc < 0)
-		{
-			fprintf(stderr, "Unable to process arguments\n");
-			continue;
-		}
+
 		//Check if we were given cd or exit, else execute the arg
 		if(builtInCheck(argv, argc) == 1)
 			argExec(argv, argc);
@@ -98,6 +89,16 @@ void errorHandle(void)
 		perror("Error");
 		errno = 0;
 	}	
+}
+
+void setDirectory(char* workindirect)
+{
+	//Get our current directory
+	if((getcwd(workindirect,PATH_MAX-1)) == NULL)
+	{
+		errorHandle();
+		exit(EXIT_FAILURE);
+	}
 }
 
 void argStringFormat(char* argstring)
@@ -226,13 +227,12 @@ void cdExecute(char** argv)
 }
 
 int createEargs(char** execargs, char** argv, int argc)
-{
-	//Create arg array to be passed to exec 
+{ 
+	//Constructs array to be passed to execvp, checking for redir characters
 	//If theres no redirection, execargs == argv
 	int eargs=1, redirstat=0;
 	execargs[0] = argv[0];
 	//Iterate over argv looking for any redirection characters
-	//Characters included at < > 2> >>
 	for(int i=1; i<argc; i++)
 	{
 		if(((strcmp(argv[i], "<") == 0) && argv[i+1]))
