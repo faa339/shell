@@ -243,7 +243,7 @@ int createEargs(char** execargs, char** argv, int argc)
 				fprintf(stderr,"Redirection error: could not redirect\n");
 				exit(EXIT_FAILURE);
 			}
-			i+=2;
+			i++;
 		}else if((strcmp(argv[i], ">") == 0) && argv[i+1])
 		{
 			redirstat = redirHandle(argv[i+1], STDOUT_FILENO);
@@ -252,7 +252,7 @@ int createEargs(char** execargs, char** argv, int argc)
 				fprintf(stderr,"Redirection error: could not redirect\n");
 				exit(EXIT_FAILURE);
 			}
-			i+=2;
+			i++;
 		}else if((strcmp(argv[i], "2>") == 0) && argv[i+1])
 		{
 			redirstat = redirHandle(argv[i+1], STDERR_FILENO);
@@ -261,7 +261,7 @@ int createEargs(char** execargs, char** argv, int argc)
 				fprintf(stderr,"Redirection error: could not redirect\n");
 				exit(EXIT_FAILURE);
 			}
-			i+=2;
+			i++;
 		}else if((strcmp(argv[i], ">>") == 0) && argv[i+1])
 		{
 			redirstat = redirHandle(argv[i+1], O_APPEND);
@@ -270,7 +270,7 @@ int createEargs(char** execargs, char** argv, int argc)
 				fprintf(stderr,"Redirection error: could not redirect\n");
 				exit(EXIT_FAILURE);
 			}
-			i+=2;
+			i++;
 		}else execargs[eargs++] = argv[i];
 	}
 	return eargs; //argc but for our exec args string
