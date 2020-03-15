@@ -205,7 +205,7 @@ int redirHandle(char* redirpath, int redirOp)
 		return 0;
 	}else if(redirOp == O_APPEND)
 	{
-		fd = open(redirpath,O_RDWR|O_APPEND|O_CREAT, 0666);
+		fd = open(redirpath,O_WRONLY|O_APPEND|O_CREAT, 0666);
 		if(fd < 0) errorHandle();
 		
 		if(dup2(fd, STDOUT_FILENO) < 0) errorHandle();
